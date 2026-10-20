@@ -18,11 +18,8 @@
       items: [
         "纯实践",
         "惩戒管教",
-        "角色扮演",
+        "剧情演绎",
         "捆绑固定",
-        "欢快氛围",
-        "温馨氛围",
-        "严肃氛围",
         "反主",
       ],
     },
@@ -32,8 +29,8 @@
       items: [
         "臀部",
         "臀缝",
-        "大腿（后侧）",
-        "大腿（前侧）",
+        "大腿后侧",
+        "大腿前侧",
         "小腿",
         "手心",
         "脚心",
@@ -49,15 +46,14 @@
         "戒尺",
         "皮具",
         "藤条",
+        "小红",
         "板子",
         "橡胶类",
         "亚克力类",
         "发刷",
         "散鞭",
         "长鞭",
-        "马鞭",
         "数据线",
-        "跳绳（贼疼）",
       ],
     },
     {
@@ -67,7 +63,9 @@
         "OTK",
         "平趴",
         "跪趴",
+        "跪立",
         "趴桌子",
+        "趴床边",
         "站立扶墙",
         "站立扶腿",
         "尿布式",
@@ -76,25 +74,18 @@
     {
       id: "feeling",
       name: "氛围",
-      items: [
-        "仪式感",
-        "羞耻感",
-        "压迫感",
-        "安全感",
-        "控制感",
-        "不安感",
-        "服从感",
-      ],
-    },
-    {
-      id: "extra",
-      name: "附加",
-      items: ["罚站", "罚跪", "写检讨", "罚抄写", "姜罚", "晾臀"],
+      items: ["仪式感", "羞耻感", "压迫感", "控制感", "不安感", "服从感"],
     },
     {
       id: "other",
       name: "其他",
       items: [
+        "罚站",
+        "罚跪",
+        "写检讨",
+        "罚抄写",
+        "姜罚",
+        "晾臀",
         "aftercare",
         "请罚",
         "多人实践",
@@ -108,22 +99,12 @@
     },
   ];
   CATALOG.forEach(
-    (c) =>
-      (c.items = c.items.map((name, i) => ({
-        id: c.id + "-" + String(i + 1).padStart(2, "0"),
+    (category) =>
+      (category.items = category.items.map((name, index) => ({
+        id: category.id + "-" + String(index + 1).padStart(2, "0"),
         name,
       }))),
   );
-  // Append a stable ID while inserting the new tool in its requested display position.
-  CATALOG.find((c) => c.id === "tool").items.splice(4, 0, {
-    id: "tool-14",
-    name: "小红",
-  });
-  // Keep existing item IDs so merging categories preserves saved preferences.
-  const extraIndex = CATALOG.findIndex((c) => c.id === "extra");
-  const otherCategory = CATALOG.find((c) => c.id === "other");
-  otherCategory.items = [...CATALOG[extraIndex].items, ...otherCategory.items];
-  CATALOG.splice(extraIndex, 1);
   const STATES = ["empty", "low", "medium", "high", "full", "reject"];
   const STATE_NAMES = {
     empty: "空",
@@ -221,13 +202,13 @@
     [80, 12, 85, 7],
     [94, 36, 98, 39],
   ];
-  function burstSVG() {
+  function burstSVG(radiusScale = 1) {
     return (
       '<g class="star-burst">' +
       BURST_STARS.map(
         (s) =>
           '<polygon points="' +
-          starPoints(s) +
+          starPoints({ ...s, r: s.r * radiusScale }) +
           '" fill="' +
           STAR_COLORS[s.shade] +
           '" stroke="#b18c40" stroke-width=".45" stroke-linejoin="round"/>',
@@ -257,9 +238,9 @@
       "</g>"
     );
   }
-  function drawBurst(ctx) {
+  function drawBurst(ctx, radiusScale = 1) {
     BURST_STARS.forEach((s) => {
-      const points = starPoints(s)
+      const points = starPoints({ ...s, r: s.r * radiusScale })
         .split(" ")
         .map((p) => p.split(",").map(Number));
       ctx.beginPath();
@@ -310,7 +291,7 @@
   function validateData(data) {
     if (
       !data ||
-      ![1, 2].includes(data.version) ||
+      data.version !== 2 ||
       !data.states ||
       typeof data.states !== "object" ||
       Array.isArray(data.states) ||
@@ -333,18 +314,16 @@
       clean.degreeRange = range.slice();
     }
     for (const [id, state] of Object.entries(data.states)) {
-      if (!knownIds.has(id) || !validState(state))
+      if (!knownIds.has(id) || degreeIds.has(id) || !validState(state))
         throw new Error("Invalid state");
-      if (!degreeIds.has(id)) clean.states[id] = state;
+      clean.states[id] = state;
     }
     const ids = new Set(knownIds),
       names = new Map(
         CATALOG.map((c) => [c.id, new Set(c.items.map((i) => i.name))]),
       );
     for (const item of data.customBottles) {
-      const categoryId = ["degree", "extra"].includes(item?.categoryId)
-        ? "other"
-        : item?.categoryId;
+      const categoryId = item?.categoryId;
       if (
         !item ||
         typeof item.id !== "string" ||
@@ -371,15 +350,12 @@
   }
   let data = newData(),
     storageAvailable = true,
-    restoreFailed = false,
-    migrated = false;
+    restoreFailed = false;
   try {
     const raw = localStorage.getItem(STORAGE_KEY);
     if (raw !== null) {
       try {
-        const saved = JSON.parse(raw);
-        data = validateData(saved);
-        migrated = saved.version === 1;
+        data = validateData(JSON.parse(raw));
       } catch {
         restoreFailed = true;
       }
@@ -421,14 +397,18 @@
     }
     return points.join(" ");
   }
+  function starRadiusScale() {
+    return matchMedia("(max-width: 599px)").matches ? 0.9 : 1;
+  }
   function bottleSVG(state, key, seed = key) {
     const clip = "bottle-clip-" + key,
-      full = state === "full";
+      full = state === "full",
+      radiusScale = starRadiusScale();
     const stars = starsFor(state, seed)
       .map(
         (s) =>
           '<polygon points="' +
-          starPoints(s) +
+          starPoints({ ...s, r: s.r * radiusScale }) +
           '" fill="' +
           STAR_COLORS[s.shade] +
           '" stroke="#b18c40" stroke-width=".45" stroke-linejoin="round"/>',
@@ -438,7 +418,7 @@
       ? ""
       : '<rect x="30" y="16" width="40" height="10" rx="4" fill="#c9f6f5" stroke="#8dbdbd" stroke-width="1.3"/><path d="M36 19h28" stroke="#ffffff" stroke-width="1.4" stroke-linecap="round"/>';
     return (
-      '<svg class="bottle-picture" viewBox="0 0 100 150" aria-hidden="true" xmlns="http://www.w3.org/2000/svg"><defs><clipPath id="' +
+      '<svg class="bottle-picture" viewBox="0 0 100 150" preserveAspectRatio="none" aria-hidden="true" xmlns="http://www.w3.org/2000/svg"><defs><clipPath id="' +
       clip +
       '"><path d="' +
       (full ? OVERFLOW_CLIP_PATH : BODY_PATH) +
@@ -459,7 +439,7 @@
       LINE_PATH +
       '" stroke="white" stroke-width="3" stroke-linecap="round" opacity=".9"/>' +
       cap +
-      (full ? burstSVG() : "") +
+      (full ? burstSVG(radiusScale) : "") +
       (state === "reject"
         ? '<path d="' +
           CROSS_PATH +
@@ -516,7 +496,6 @@
       String(++svgSequence),
       item.id,
     );
-    button.querySelector(".bottle-state").textContent = STATE_NAMES[state];
   }
   function createCard(item) {
     const card = document.createElement("div");
@@ -531,9 +510,7 @@
     const name = document.createElement("span");
     name.className = "bottle-name";
     setName(name, item.name);
-    const state = document.createElement("span");
-    state.className = "bottle-state";
-    button.append(art, name, state);
+    button.append(art, name);
     card.append(button);
     if (item.custom) {
       const marker = document.createElement("span");
@@ -562,19 +539,22 @@
     const container = document.createElement("div");
     container.className = "degree-widget";
     container.innerHTML =
-      '<div class="degree-summary"><output id="degreeValue" class="degree-value" aria-live="polite"></output></div><div class="degree-control"><div class="degree-track" id="degreeTrack"><div class="degree-rail"></div><div class="degree-fill" id="degreeFill"></div>' +
-      Array.from(
-        { length: 5 },
-        (_, i) =>
-          '<span class="degree-tick" style="left:' + i * 25 + '%"></span>',
-      ).join("") +
-      '<button type="button" class="degree-thumb" id="degreeLow" role="slider" aria-label="最低程度" aria-valuemin="0" aria-valuemax="4" aria-orientation="horizontal"></button><button type="button" class="degree-thumb" id="degreeHigh" role="slider" aria-label="最高程度" aria-valuemin="0" aria-valuemax="4" aria-orientation="horizontal"></button></div><div class="degree-labels" id="degreeLabels"></div></div>';
+      '<div class="degree-summary"><output id="degreeValue" class="degree-value" aria-live="polite"></output></div><div class="degree-control" id="degreeTrack"><div class="degree-rail"></div><div class="degree-fill" id="degreeFill"></div><div class="degree-scale" id="degreeLabels"></div><button type="button" class="degree-thumb" id="degreeLow" role="slider" aria-label="最低程度" aria-valuemin="0" aria-valuemax="4" aria-orientation="horizontal"></button><button type="button" class="degree-thumb" id="degreeHigh" role="slider" aria-label="最高程度" aria-valuemin="0" aria-valuemax="4" aria-orientation="horizontal"></button></div>';
     const labels = container.querySelector("#degreeLabels");
-    CATALOG[0].items.forEach((item) => {
+    CATALOG[0].items.forEach((item, index) => {
+      const stop = document.createElement("div");
+      stop.className = "degree-stop";
+      stop.style.left = index * 25 + "%";
+      const node = document.createElement("span");
+      node.className = "degree-node";
+      const tick = document.createElement("span");
+      tick.className = "degree-tick";
+      node.append(tick);
       const label = document.createElement("div");
       label.className = "degree-label";
       setName(label, item.name);
-      labels.append(label);
+      stop.append(node, label);
+      labels.append(stop);
     });
     const track = container.querySelector("#degreeTrack");
     let drag = null,
@@ -590,7 +570,7 @@
       changed = true;
     }
     function indexAt(x) {
-      const rect = track.getBoundingClientRect();
+      const rect = track.querySelector(".degree-rail").getBoundingClientRect();
       return Math.round(
         Math.max(0, Math.min(1, (x - rect.left) / rect.width)) * 4,
       );
@@ -675,11 +655,12 @@
       : "未选择";
     $("degreeValue").title = degreeText(data.degreeRange);
     $("degreeValue").setAttribute("aria-label", degreeText(data.degreeRange));
-    $("degreeFill").style.left = range[0] * 25 + "%";
+    const degreePosition = (index) => index * 25;
+    $("degreeFill").style.left = degreePosition(range[0]) + "%";
     $("degreeFill").style.width = (range[1] - range[0]) * 25 + "%";
     ["degreeLow", "degreeHigh"].forEach((id, index) => {
       const thumb = $(id);
-      thumb.style.left = range[index] * 25 + "%";
+      thumb.style.left = degreePosition(range[index]) + "%";
       thumb.setAttribute("aria-valuenow", String(range[index]));
       thumb.setAttribute(
         "aria-valuetext",
@@ -696,39 +677,38 @@
               : "2"
           : "2";
     });
-    Array.from($("degreeLabels").children).forEach((label, index) =>
-      label.classList.toggle(
-        "active",
-        data.degreeRange !== null && index >= range[0] && index <= range[1],
-      ),
+    Array.from($("degreeLabels").querySelectorAll(".degree-label")).forEach(
+      (label, index) =>
+        label.classList.toggle(
+          "active",
+          data.degreeRange !== null && index >= range[0] && index <= range[1],
+        ),
     );
   }
   function render() {
     const fragment = document.createDocumentFragment();
-    CATALOG.forEach((category, index) => {
+    CATALOG.forEach((category) => {
       const section = document.createElement("section");
       section.className = "section";
       section.dataset.categoryId = category.id;
-      const header = document.createElement("div");
-      header.className = "section-head";
       const title = document.createElement("h2");
+      title.className = "section-label";
       title.id = "heading-" + category.id;
-      title.textContent = category.name;
+      for (const char of category.name) {
+        const line = document.createElement("span");
+        line.textContent = char;
+        title.append(line);
+      }
       section.setAttribute("aria-labelledby", title.id);
-      const count = document.createElement("span");
-      count.className = "section-count";
-      const items = categoryItems(category);
-      count.textContent =
-        category.id === "degree" ? "范围选择" : items.length + " 个瓶子";
-      header.append(title, count);
+      const body = document.createElement("div");
+      body.className = "section-body";
       if (category.id === "degree") {
-        count.remove();
-        const control = createDegreeControl();
-        header.append(control.querySelector(".degree-summary"));
-        section.append(header, control);
+        body.append(createDegreeControl());
+        section.append(title, body);
         fragment.append(section);
         return;
       }
+      const items = categoryItems(category);
       const grid = document.createElement("div");
       grid.className = "bottle-grid";
       items.forEach((item) => grid.append(createCard(item)));
@@ -743,17 +723,64 @@
       add.innerHTML =
         '<span class="art">' +
         addArt +
-        '</span><span class="bottle-name">添加瓶子</span><span class="bottle-state" aria-hidden="true">&nbsp;</span>';
+        '</span><span class="bottle-name">添加瓶子</span>';
       add.setAttribute("aria-label", "添加瓶子到" + category.name);
       const addCard = document.createElement("div");
       addCard.className = "add-card";
       addCard.append(add);
       grid.append(addCard);
-      section.append(header, grid);
+      body.append(grid);
+      section.append(title, body);
       fragment.append(section);
     });
     $("categories").replaceChildren(fragment);
     updateDegree();
+    alignSectionLabels();
+  }
+  function alignDegreeWidth(root = document) {
+    const widget = root.querySelector(".degree-widget");
+    const grid = root.querySelector(".bottle-grid");
+    const picture = grid?.querySelector(".bottle-picture");
+    if (!widget || !grid || !picture) return;
+    const gridRect = grid.getBoundingClientRect();
+    const body = grid.parentElement.getBoundingClientRect();
+    const columnGap = parseFloat(getComputedStyle(grid).columnGap) || 0;
+    const columnWidth = (gridRect.width - columnGap * 5) / 6;
+    const pictureWidth = picture.getBoundingClientRect().width;
+    const sideInset = Math.max(0, (columnWidth - pictureWidth) / 2);
+    const left = gridRect.left - body.left + sideInset;
+    const width = gridRect.width - sideInset * 2;
+    if (width <= 0) return;
+    widget.style.marginLeft = left + "px";
+    widget.style.width = width + "px";
+    const bounds = widget.parentElement.getBoundingClientRect();
+    const stops = widget.querySelectorAll(".degree-label");
+    if (stops.length < 2) return;
+    const firstLabel = stops[0].getBoundingClientRect();
+    const lastLabel = stops[stops.length - 1].getBoundingClientRect();
+    const overflowLeft = Math.max(0, Math.ceil(bounds.left - firstLabel.left));
+    const overflowRight = Math.max(0, Math.ceil(lastLabel.right - bounds.right));
+    if (!overflowLeft && !overflowRight) return;
+    widget.style.marginLeft = left + overflowLeft + "px";
+    widget.style.width = Math.max(0, width - overflowLeft - overflowRight) + "px";
+  }
+  function alignSectionLabels(root = document) {
+    alignDegreeWidth(root);
+    root.querySelectorAll(".section").forEach((section) => {
+      const label = section.querySelector(".section-label");
+      const target =
+        section.querySelector(".bottle-card, .add-card") ||
+        section.querySelector(".degree-node");
+      if (!label || !target) return;
+      const sectionTop = section.getBoundingClientRect().top;
+      const row = target.getBoundingClientRect();
+      const labelBox = label.getBoundingClientRect();
+      const current = parseFloat(getComputedStyle(label).marginTop) || 0;
+      const naturalTop = labelBox.top - sectionTop - current;
+      const desiredTop =
+        row.top - sectionTop + (row.height - labelBox.height) / 2;
+      label.style.marginTop = Math.max(0, desiredTop - naturalTop) + "px";
+    });
   }
   let pendingCategory = null,
     confirmation = null,
@@ -957,21 +984,22 @@
     ctx.fill(path);
     ctx.stroke(path);
   }
-  function drawBottle(ctx, x, y, width, state, seed) {
+  function drawBottle(ctx, x, y, width, height, state, seed) {
     ctx.save();
     ctx.translate(x, y);
-    ctx.scale(width / 100, width / 100);
+    ctx.scale(width / 100, height / 150);
     ctx.fillStyle = "#cadfde52";
     ctx.beginPath();
     ctx.ellipse(50, 144, 29, 3, 0, 0, Math.PI * 2);
     ctx.fill();
     const full = state === "full",
-      body = new Path2D(full ? OPEN_BODY_PATH : BODY_PATH);
+      body = new Path2D(full ? OPEN_BODY_PATH : BODY_PATH),
+      radiusScale = starRadiusScale();
     fillStroke(ctx, body, "rgba(245,251,251,.72)", "#8dbdbd", 1.7);
     ctx.save();
     ctx.clip(new Path2D(full ? OVERFLOW_CLIP_PATH : BODY_PATH));
     starsFor(state, seed).forEach((s) => {
-      const points = starPoints(s)
+      const points = starPoints({ ...s, r: s.r * radiusScale })
         .split(" ")
         .map((p) => p.split(",").map(Number));
       ctx.beginPath();
@@ -1009,7 +1037,7 @@
       ctx.lineTo(64, 19);
       ctx.stroke();
     }
-    if (full) drawBurst(ctx);
+    if (full) drawBurst(ctx, radiusScale);
     if (state === "reject") {
       ctx.strokeStyle = "#e05265";
       ctx.lineWidth = 4;
@@ -1044,6 +1072,7 @@
       .forEach((el) => el.classList.remove("flash"));
     snapshot.style.paddingBottom = "20px";
     document.body.append(snapshot);
+    alignSectionLabels(snapshot);
     return snapshot;
   }
   function makeExportCanvas(snapshot) {
@@ -1102,13 +1131,13 @@
     }
     snapshot.querySelectorAll(".section,.bottle-card").forEach(paintBox);
     snapshot.querySelectorAll(".bottle-card").forEach((card) => {
-      const r = box(card.querySelector(".bottle-picture")),
-        unit = Math.min(r.width / 100, r.height / 150);
+      const r = box(card.querySelector(".bottle-picture"));
       drawBottle(
         ctx,
-        r.x + (r.width - unit * 100) / 2,
-        r.y + (r.height - unit * 150) / 2,
-        unit * 100,
+        r.x,
+        r.y,
+        r.width,
+        r.height,
         card.dataset.state,
         card.dataset.itemId,
       );
@@ -1293,7 +1322,20 @@
       prepareImage().catch(() => {});
     }, 700);
   }
-  window.addEventListener("resize", scheduleImagePreparation);
+  const mobileBottles = matchMedia("(max-width: 599px)");
+  document.body.dataset.compactStars = mobileBottles.matches ? "1" : "0";
+  window.addEventListener("resize", () => {
+    const compact = mobileBottles.matches ? "1" : "0";
+    if (document.body.dataset.compactStars !== compact) {
+      document.body.dataset.compactStars = compact;
+      document.querySelectorAll(".bottle-card").forEach((card) => {
+        const item = findItem(card.dataset.itemId);
+        if (item) refreshCard(card, item);
+      });
+    }
+    alignSectionLabels();
+    scheduleImagePreparation();
+  });
   async function saveMobileImage(file) {
     if (!supportsImageShare(file)) {
       openLongPressSave(file);
@@ -1346,5 +1388,4 @@
   });
   render();
   scheduleImagePreparation();
-  if (migrated) toast("程度已改为范围选择，请重新选择；其他填写已保留。");
 })();

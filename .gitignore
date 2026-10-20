@@ -1,0 +1,3 @@
+# Ignore Markdown documents in the repository root, except README.
+/*.[mM][dD]
+!/[rR][eE][aA][dD][mM][eE].[mM][dD]

@@ -301,7 +301,13 @@
       : Array.from(text);
   }
   function newData() {
-    return { version: 2, degreeRange: null, states: {}, customBottles: [] };
+    return {
+      version: 2,
+      degreeRange: null,
+      states: {},
+      customBottles: [],
+      hiddenIds: [],
+    };
   }
   function validState(value) {
     return STATES.includes(value);
@@ -365,6 +371,17 @@
         name: item.name,
         state: item.state,
       });
+    }
+    if (Array.isArray(data.hiddenIds)) {
+      for (const id of data.hiddenIds) {
+        if (
+          typeof id === "string" &&
+          knownIds.has(id) &&
+          !degreeIds.has(id) &&
+          !clean.hiddenIds.includes(id)
+        )
+          clean.hiddenIds.push(id);
+      }
     }
     return clean;
   }
@@ -473,6 +490,7 @@
   }
   function categoryItems(category) {
     return category.items
+      .filter((i) => !data.hiddenIds.includes(i.id))
       .map((i) => ({ ...i, custom: false }))
       .concat(
         data.customBottles
@@ -537,14 +555,15 @@
       marker.className = "custom-mark";
       marker.textContent = "自定义";
       marker.setAttribute("aria-hidden", "true");
-      const remove = document.createElement("button");
-      remove.type = "button";
-      remove.className = "delete-bottle";
-      remove.textContent = "×";
-      remove.dataset.action = "delete";
-      remove.setAttribute("aria-label", "删除瓶子：" + item.name);
-      card.append(marker, remove);
+      card.append(marker);
     }
+    const remove = document.createElement("button");
+    remove.type = "button";
+    remove.className = "delete-bottle";
+    remove.textContent = "×";
+    remove.dataset.action = "delete";
+    remove.setAttribute("aria-label", "删除瓶子：" + item.name);
+    card.append(remove);
     refreshCard(card, item);
     return card;
   }
@@ -894,7 +913,14 @@
     if (!item) return;
     if (action === "delete") {
       askConfirm("删除瓶子", "确定删除“" + item.name + "”吗？", () => {
-        data.customBottles = data.customBottles.filter((i) => i.id !== item.id);
+        if (item.custom)
+          data.customBottles = data.customBottles.filter(
+            (i) => i.id !== item.id,
+          );
+        else {
+          if (!data.hiddenIds.includes(item.id)) data.hiddenIds.push(item.id);
+          delete data.states[item.id];
+        }
         persist();
         render();
         document
@@ -969,16 +995,14 @@
   $("resetButton").addEventListener("click", () =>
     askConfirm(
       "清空填写",
-      "将所有瓶子恢复为空，并清除程度范围，是否继续？自定义瓶子会保留。",
+      "将所有瓶子恢复为空，并清除程度范围，是否继续？默认瓶子会恢复，仍保留的自定义瓶子会留下。",
       () => {
         data.states = {};
         data.degreeRange = null;
-        updateDegree();
+        data.hiddenIds = [];
         data.customBottles.forEach((i) => (i.state = "empty"));
         persist();
-        document
-          .querySelectorAll(".bottle-card")
-          .forEach((card) => refreshCard(card, findItem(card.dataset.itemId)));
+        render();
         toast("已恢复为空瓶，自定义瓶子已保留");
       },
     ),

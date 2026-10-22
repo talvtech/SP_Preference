@@ -186,11 +186,13 @@ button svg {
   gap: 2px 4px;
 }
 .bottle-card {
+  --bottle-w: 68px;
   min-width: 0;
   position: relative;
   border-radius: 14px;
   background: transparent;
   border: 1px solid transparent;
+  overflow: visible;
   transition:
     border-color 0.15s,
     background 0.15s;
@@ -241,14 +243,25 @@ button svg {
   position: absolute;
   right: 0;
   top: 0;
-  width: 44px;
-  height: 44px;
+  width: 20px;
+  height: 20px;
   border: 0;
   background: none;
   border-radius: 12px;
   font-size: 19px;
   color: #7c8784;
   z-index: 1;
+}
+.bottle-card[data-state="full"] .delete-bottle {
+  right: auto;
+  left: 50%;
+  width: 20px;
+  height: 20px;
+  transform: translate(calc(var(--bottle-w) / 2 - 12px), -12px);
+  display: flex;
+  align-items: flex-start;
+  justify-content: flex-end;
+  padding: 2px 4px;
 }
 .delete-bottle:hover {
   color: var(--red);
@@ -516,6 +529,7 @@ input {
     gap: 1px 2px;
   }
   .bottle-card {
+    --bottle-w: 48px;
     border-radius: 10px;
   }
   .bottle-hit {
@@ -548,6 +562,9 @@ input {
     justify-content: flex-end;
     padding: 2px 4px;
     font-size: 16px;
+  }
+  .bottle-card[data-state="full"] .delete-bottle {
+    transform: translate(calc(var(--bottle-w) / 2 - 12px), -10px);
   }
   .custom-mark {
     display: none;
@@ -714,10 +731,10 @@ input {
   outline: 2px solid #087f7d;
   outline-offset: 2px;
 }
-.degree-track[data-selected="false"] .degree-thumb::after {
+.degree-control[data-selected="false"] .degree-thumb::after {
   border-color: #b6c9c9;
 }
-.degree-track[data-selected="false"] .degree-fill {
+.degree-control[data-selected="false"] .degree-fill {
   display: none;
 }
 .degree-label {
